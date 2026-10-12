@@ -75,7 +75,7 @@ min_industrial_sites: 3
 # An OSM industrial area becomes its own zone only when its name reads like an estate or precinct;
 # other named industrial sites (single companies, utilities) only count as evidence of industry.
 estate_name_pattern: '(?i)\b(industrial|industry|estate|business park|trade park|enterprise park|precinct|intermodal|logistics park|ind\.? area|industrial area|zone industrielle|kawasan industri|midc|gidc|sidco|eco ?park|free zone|export processing|epz|sez)\b'
-estate_name_exclude: '(?i)\b(substation|reservoir|water|sewage|treatment|pumping|depot|tank|plant)\b'
+estate_name_exclude: '(?i)\b(substation|reservoir|water|sewage|treatment|pumping|depot|tank|plant|post office|polytechnic|college|school|university|institute|academy|authority|corporation|department|ministry|office|company|joint ?stock|ltd|pvt|llc|inc|gmbh|bank|hospital|clinic|hotel|temple|mosque|church|police|station|apartment|residency|hostel|shop|store|mart)\b'
 
 # A new candidate this close to an existing zone is treated as the same place (alias).
 alias_distance_km: 1.5

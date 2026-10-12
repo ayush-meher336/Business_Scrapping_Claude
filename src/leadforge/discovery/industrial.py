@@ -20,9 +20,18 @@ AREA_NAME = re.compile(r"(?i)\b(industrial|estate|business park|precinct|ind\.? 
 GENERIC = re.compile(r"(?i)^\W*(the\s+)?(industrial|business|logistics)\s+(park|area|estate|zone)\W*$")
 
 
+# Results that mention an industrial area but are a single office, institution or company.
+NOT_AN_AREA = re.compile(
+    r"(?i)\b(post office|polytechnic|college|school|university|institute|academy|authority|corporation|"
+    r"development board|department|ministry|office|company|joint ?stock|ltd|pvt|llc|inc|gmbh|"
+    r"bank|atm|hospital|clinic|hotel|restaurant|temple|mosque|church|police|station|bus stop|"
+    r"apartment|residency|hostel|shop|store|mart)\b")
+
+
 def is_area(result: dict) -> bool:
-    if GENERIC.match(result.get("name") or ""):
-        return False                     # a bare "Industrial Park" names nothing a search can target
+    name = result.get("name") or ""
+    if GENERIC.match(name) or NOT_AN_AREA.search(name):
+        return False                     # a bare "Industrial Park", or one office / company inside one
     return bool(AREA_CATEGORY.search(result.get("category") or "") or AREA_NAME.search(result.get("name") or ""))
 
 

@@ -93,6 +93,10 @@ def test_normalisers():
     assert is_area({"name": "Momentum Industrial Estate", "category": "Business park"})
     assert not is_area({"name": "Bob's Tyres", "category": "Tyre shop"})
     assert not is_area({"name": "Industrial Park", "category": "Industrial estate"})
+    for office in ("Guanyin Industrial Park Post Office", "Industrial Chemical Technology Polytechnic",
+                   "JHARKHAND INDUSTRIAL AREA DEVELOPMENT AUTHORITY", "Thye Ming Industrial Co., Ltd."):
+        assert not is_area({"name": office, "category": "Industrial estate"}), office
+    assert is_area({"name": "Smart Industrial Park", "category": ""})      # 'mart' inside a word is fine
 
 
 # -- resolver --------------------------------------------------------------
