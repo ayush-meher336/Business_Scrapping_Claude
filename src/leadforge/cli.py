@@ -551,5 +551,60 @@ def sync(niche: str = typer.Option("scrapyards"),
         typer.echo(f"  conflicts recorded so far: {n} (sheet edits won; see sync_conflict table)")
 
 
+# -- Phase 7: benchmarks -----------------------------------------------------
+
+BENCH_SUITE = [(100, "Australia", "Sydney", "100 / Sydney (old benchmark area)"),
+               (100, "Australia", "Melbourne", "100 / Melbourne (new area)"),
+               (500, "Australia", "Brisbane", "500 / Brisbane"),
+               (1000, "Australia", "Perth", "1,000 / Perth")]
+
+
+@app.command()
+def bench(
+    target: int = typer.Option(None, help="Businesses to find and enrich (omit to run the standard suite)"),
+    country: str = typer.Option("Australia"), city: str = typer.Option(None),
+    with_sync: bool = typer.Option(True, help="Include the Google Sheets sync in the timing"),
+    workers: int = typer.Option(None), niche: str = typer.Option("scrapyards"),
+) -> None:
+    """End-to-end benchmark vs the old agent (100 businesses in 616 s). Writes data/exports/benchmark_*.md."""
+    from leadforge.core.ids import new_ulid
+    from leadforge.discovery.runner import Relevance
+    from leadforge.keywords.planner import plan
+    from leadforge.reporting.bench import report, run_bench
+    from leadforge.sync.client import client_from_env
+    from leadforge.sync.run import run_sync
+
+    cfg, conn = _open()
+    n = load_niche(cfg.root, niche)
+    relevance = Relevance(n.discovery.include, n.discovery.exclude)
+    suite = [(target, country, city, f"{target} / {city or country}")] if target else BENCH_SUITE
+    sync_fn = None
+    if with_sync:
+        try:
+            client = client_from_env(cfg.root)
+            sync_fn = lambda: run_sync(conn, client, n)  # noqa: E731
+        except RuntimeError as exc:
+            typer.echo(f"(sync not timed: {exc})")
+    results = []
+    for tgt, ctry, cty, label in suite:
+        pending = conn.execute("""SELECT COUNT(*) FROM search_job j JOIN zone z USING(zone_id)
+                                  WHERE j.status='pending' AND z.country=? AND (? IS NULL OR z.city=?)""",
+                               (ctry, cty, cty)).fetchone()[0]
+        if pending < tgt // 10:
+            with conn:
+                plan(conn, niche, [ctry], ["google_maps_browser"], f"plan-{new_ulid()}", 4, cty)
+        typer.echo(f"Running {label} ...")
+        r = run_bench(conn, _session_factory(cfg, "google_maps_browser", False), relevance, _crawl_settings(cfg),
+                      tgt, ctry, cty, workers or cfg.discovery.get("workers", 2), sync_fn, label)
+        per100 = r.total_s / max(r.businesses, 1) * 100
+        typer.echo(f"  {r.businesses} businesses in {r.total_s:.0f} s ({per100:.0f} s per 100; old: 616) "
+                   f"stages {{{', '.join(f'{k}: {v:.0f}s' for k, v in r.stages.items())}}}")
+        results.append(r)
+        if r.notes:
+            typer.echo("  " + "; ".join(r.notes))
+            break
+    typer.echo(f"report: {report(results, cfg.resolve(cfg.paths.exports))}")
+
+
 if __name__ == "__main__":
     app()

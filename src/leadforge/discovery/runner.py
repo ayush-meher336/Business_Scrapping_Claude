@@ -52,6 +52,7 @@ class RunStats:
     review: int = 0
     rejected: int = 0
     blocked: str | None = None
+    run_id: str | None = None
     errors: list[str] = field(default_factory=list)
 
 
@@ -120,10 +121,12 @@ def store_results(conn: sqlite3.Connection, job: sqlite3.Row, results: list[dict
 
 def run(conn: sqlite3.Connection, source: str, session_factory: Callable[[], object], relevance: Relevance,
         max_jobs: int, workers: int = 1, country: str | None = None, city: str | None = None,
-        on_job: Callable[[sqlite3.Row, int, int], None] | None = None) -> RunStats:
+        on_job: Callable[[sqlite3.Row, int, int], None] | None = None,
+        stop_when: Callable[[str], bool] | None = None, run_id: str | None = None) -> RunStats:
     """`session_factory()` returns a context manager whose value has `.search(query) -> list[result]`."""
     stats = RunStats()
-    run_id = f"discover-{new_ulid()}"
+    run_id = run_id or f"discover-{new_ulid()}"
+    stats.run_id = run_id
     conn.execute("INSERT INTO run(run_id, kind, started_at, config_json) VALUES (?,?,?,?)",
                  (run_id, "research", _now(), json.dumps({"source": source, "max_jobs": max_jobs,
                                                           "workers": workers, "country": country, "city": city})))
@@ -171,6 +174,11 @@ def run(conn: sqlite3.Connection, source: str, session_factory: Callable[[], obj
                         conn.commit()
                         continue
                     except Exception as exc:  # one failed search must not end the run
+                        if isinstance(exc, RuntimeError) and str(exc) == "stopped":
+                            conn.execute("UPDATE search_job SET status='pending', claimed_by=NULL, "
+                                         "attempts=attempts-1 WHERE job_id=?", (job["job_id"],))
+                            conn.commit()
+                            continue
                         stats.jobs_failed += 1
                         stats.errors.append(f"job {job['job_id']}: {exc}")
                         status = "failed" if job["attempts"] >= 3 else "pending"
@@ -182,6 +190,8 @@ def run(conn: sqlite3.Connection, source: str, session_factory: Callable[[], obj
                     stats.jobs_done += 1
                     if on_job:
                         on_job(job, len(results), new)
+                    if stop_when and stop_when(run_id):
+                        stop.set()          # target reached: claim nothing more; in-flight jobs still finish
     finally:
         # Jobs that never ran go back to the queue.
         conn.execute("UPDATE search_job SET status='pending', claimed_by=NULL WHERE status='claimed' AND claimed_by=?",
