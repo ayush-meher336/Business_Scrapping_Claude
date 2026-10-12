@@ -18,6 +18,8 @@ dependencies = [
     "phonenumbers>=8.13",
     "rapidfuzz>=3.9",
     "tldextract>=5.1",
+    "trafilatura>=1.12",
+    "dnspython>=2.6",
 ]
 
 [project.optional-dependencies]

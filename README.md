@@ -3,7 +3,7 @@
 Python pipeline for discovering, enriching and organising business leads. Design:
 [architecture document](https://claude.ai/code/artifact/903bf892-91a7-45ae-9175-a64829d8330b).
 
-**Status:** Phases 1-3 built (migration, geography/keywords, browser discovery + dedup). No third-party data APIs.
+**Status:** Phases 1-4 built (migration, geography/keywords, browser discovery + dedup, website enrichment). No third-party data APIs.
 
 ## Setup on a new machine
 
@@ -65,6 +65,20 @@ leadforge dedup-report                                  # resolution counts + CS
 Google Maps is read from the results list in one pass (listings are not opened one by one).
 Pacing is 4-8 s per search per browser. If Google shows a verification page the run stops with
 exit code 2; nothing tries to get past it. Check it in a normal browser before running again.
+
+### Phase 4: website enrichment (plain HTTP; browser only for JavaScript-only sites)
+
+```bash
+leadforge enrich --scope new                    # newly discovered leads
+leadforge enrich --scope missing-email --limit 2000
+leadforge enrich-bench --limit 200              # email recall vs. leads whose email is already known (no writes)
+```
+
+Per site: homepage + up to 4 relevant pages (contact, about, materials, locations), robots.txt
+respected, 20 s budget. Collects emails (incl. Cloudflare-protected and "[at]/[dot]" forms), phones,
+JSON-LD address, LinkedIn, contact page, opt-out notices, website status and cleaned page text
+(for the AI step). Filled fields are never overwritten. `Email Verified = Valid` means the address
+is well-formed and its domain has mail servers (MX); there is no mailbox-level check.
 
 Excluded countries (sanctions / instability, from the workbook footnote) are listed in
 `config/geo.yaml`; `build-zones` and `plan` refuse them.

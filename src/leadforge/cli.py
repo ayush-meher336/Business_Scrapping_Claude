@@ -410,5 +410,56 @@ def dedup_report(sample: int = typer.Option(100, help="Random new leads to expor
     typer.echo(f"  sample for manual check: {out}")
 
 
+# -- Phase 4: website enrichment ---------------------------------------------
+
+def _crawl_settings(cfg):
+    from leadforge.enrichment.crawl import CrawlSettings
+
+    c, e = cfg.concurrency, cfg.enrichment
+    return CrawlSettings(max_pages=e.get("max_pages_per_domain", 5), domain_budget_s=e.get("domain_budget_seconds", 20),
+                         timeout_s=e.get("request_timeout_seconds", 10), global_concurrency=c.get("http_global", 30),
+                         per_domain=c.get("http_per_domain", 3))
+
+
+@app.command()
+def enrich(
+    scope: str = typer.Option("new", help="new (discovered leads) | missing-email | all"),
+    limit: int = typer.Option(200), country: str = typer.Option(None), city: str = typer.Option(None),
+    retry_failed: bool = typer.Option(False),
+    browser: int = typer.Option(10, help="Max JavaScript-only sites to load in a browser afterwards (0 = none)"),
+    quiet: bool = typer.Option(False),
+) -> None:
+    """Crawl lead websites over HTTP (browser only for JS-only sites): emails, phones, contact page, text."""
+    from leadforge.enrichment import pipeline
+
+    cfg, conn = _open()
+    targets = pipeline.select_targets(conn, scope, country, city, limit, retry_failed)
+    if not targets:
+        typer.echo("Nothing to enrich for that scope.")
+        return
+    typer.echo(f"Enriching {len(targets)} websites ...")
+
+    def show(b, res, out):
+        if not quiet:
+            typer.echo(f"  {b['lead_id']:>6} {b['company_name'][:38]:<38} {res.website_status[:22]:<22} "
+                       f"{len(res.pages)}p {out['primary_email'] or '-'}")
+
+    stats = pipeline.run(conn, targets, _crawl_settings(cfg), show)
+    typer.echo(stats.summary())
+    if browser:
+        n = pipeline.browser_fallback(conn, _session_factory(cfg, "google_maps_browser", False), browser, show)
+        typer.echo(f"browser fallback: {n} sites")
+
+
+@app.command("enrich-bench")
+def enrich_bench(country: str = typer.Option("Australia"), city: str = typer.Option("Sydney"),
+                 limit: int = typer.Option(200)) -> None:
+    """Measure email recall: re-crawl leads whose email is already known (no writes)."""
+    from leadforge.enrichment import pipeline
+
+    cfg, conn = _open()
+    typer.echo(pipeline.bench(conn, country, city, limit, _crawl_settings(cfg)))
+
+
 if __name__ == "__main__":
     app()

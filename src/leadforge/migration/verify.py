@@ -12,6 +12,9 @@ from leadforge.migration.importer import SUMMARY_LABELS, to_text
 from leadforge.migration.workbook import is_blank
 
 MAX_LISTED = 25
+# Status fields describe the latest check, so research may update them (an opt-out notice found
+# on the site must also be able to switch outreach off).
+STATUS_FIELDS = {"website_status", "last_verified", "email_verified", "opt_out_notice"}
 
 
 @dataclass
@@ -85,7 +88,7 @@ def verify(conn: sqlite3.Connection, xlsx: Path) -> VerifyResult:
                 if got != want_id:
                     field_mismatches += 1
                     res.mismatches.append(f"Leads row {n}: Lead ID {want_id} stored as {got}")
-            elif want is None:
+            elif want is None or f in STATUS_FIELDS:
                 continue        # research may fill a blank workbook cell; it may never change a filled one
             elif want != got:
                 field_mismatches += 1

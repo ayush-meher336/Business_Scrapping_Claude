@@ -10,7 +10,7 @@ workbook:
 
 # Used from Phase 3 onwards; kept here so the shape is fixed early.
 concurrency:
-  http_global: 30
+  http_global: 80
   http_per_domain: 3
   browser_workers: 3
   ai_batch_size: 20
