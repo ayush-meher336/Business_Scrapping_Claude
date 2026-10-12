@@ -27,7 +27,7 @@ leadforge keywords
 leadforge build-zones --tier 1 --priority A
 ```
 
-Activate the environment first (`.venv\Scriptsctivate` on Windows, `source .venv/bin/activate`
+Activate the environment first (`.venv\Scripts\activate` on Windows, `source .venv/bin/activate`
 elsewhere) or call `.venv/Scripts/leadforge` directly.
 
 ## Commands
