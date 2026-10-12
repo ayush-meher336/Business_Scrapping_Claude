@@ -1,0 +1,27 @@
+# Application settings. Paths are relative to the project root.
+paths:
+  database: data/lead_research.db
+  exports: data/exports
+  cache: data/cache
+
+workbook:
+  # Source workbook used by `leadforge migrate`.
+  legacy_xlsx: Scrap_Outreach_Lead_Tracker.xlsx
+
+# Used from Phase 3 onwards; kept here so the shape is fixed early.
+concurrency:
+  http_global: 30
+  http_per_domain: 3
+  browser_workers: 3
+  ai_batch_size: 20
+  sheets_batch_rows: 500
+
+enrichment:
+  max_pages_per_domain: 5
+  domain_budget_seconds: 20
+  request_timeout_seconds: 10
+
+ai:
+  model: claude-haiku-5-5
+  escalation_model: claude-sonnet-5-5
+  chars_per_business: 1500

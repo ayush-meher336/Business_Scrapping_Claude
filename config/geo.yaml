@@ -1,0 +1,84 @@
+# Geography engine settings.
+
+geonames:
+  base_url: https://download.geonames.org/export/dump/
+  files: [countryInfo.txt, admin1CodesASCII.txt, cities500.zip]
+
+# From the workbook's Countries tab footnote: "Left out on purpose (sanctions, war or severe
+# instability)". The planner and zone builder refuse to work on these.
+excluded_countries:
+  reason: Sanctions, war or severe instability (workbook policy, 2026)
+  names: [Russia, Belarus, Iran, North Korea, Syria, Venezuela, Afghanistan, Cuba, Ukraine,
+          Yemen, Sudan, South Sudan, Libya, Somalia, Haiti, Mali, Burkina Faso, Niger]
+
+# Workbook country name -> GeoNames ISO2, where the names differ.
+country_aliases:
+  United States: US
+  USA: US
+  United Kingdom: GB
+  UK: GB
+  UAE: AE
+  United Arab Emirates: AE
+  South Korea: KR
+  Korea, South: KR
+  Taiwan: TW
+  Hong Kong: HK
+  Vietnam: VN
+  Viet Nam: VN
+  Czech Republic: CZ
+  Czechia: CZ
+  Turkey: TR
+  Turkiye: TR
+  Türkiye: TR
+  Ivory Coast: CI
+  "Cote d'Ivoire": CI
+  "Côte d'Ivoire": CI
+  DR Congo: CD
+  Democratic Republic of the Congo: CD
+  Republic of the Congo: CG
+  Congo: CG
+  Laos: LA
+  Myanmar: MM
+  Macedonia: MK
+  North Macedonia: MK
+  Eswatini: SZ
+  Swaziland: SZ
+  Cape Verde: CV
+  Cabo Verde: CV
+  Timor-Leste: TL
+  East Timor: TL
+  Palestine: PS
+  Brunei: BN
+  Bosnia and Herzegovina: BA
+  Micronesia: FM
+  Sao Tome and Principe: ST
+  Russia: RU
+  Iran: IR
+  Syria: SY
+  North Korea: KP
+  Moldova: MD
+  Tanzania: TZ
+  Bolivia: BO
+  Venezuela: VE
+
+# Zone builder: how far out to look and how fine to slice, by the workbook's city size code.
+size_rules:
+  X: {radius_km: 45, mode: suburbs, min_population: 0}       # Mega metro: every suburb
+  M: {radius_km: 30, mode: suburbs, min_population: 1000}    # Major city
+  H: {radius_km: 25, mode: suburbs, min_population: 1000}    # Specialist hub
+  S: {radius_km: 40, mode: towns, min_population: 2000}      # Secondary city: whole nearby towns
+
+# Suburb mode only proposes suburbs with industrial land nearby: scrap businesses cluster there.
+industrial_proximity_km: 1.5
+# ...meaning an estate/precinct or existing zone that close, or at least this many separate industrial sites.
+min_industrial_sites: 3
+# An OSM industrial area becomes its own zone only when its name reads like an estate or precinct;
+# other named industrial sites (single companies, utilities) only count as evidence of industry.
+estate_name_pattern: '(?i)\b(industrial|industry|estate|business park|trade park|enterprise park|precinct|intermodal|logistics park|ind\.? area|industrial area|zone industrielle|kawasan industri|midc|gidc|sidco|eco ?park|free zone|export processing|epz|sez)\b'
+estate_name_exclude: '(?i)\b(substation|reservoir|water|sewage|treatment|pumping|depot|tank|plant)\b'
+
+# A new candidate this close to an existing zone is treated as the same place (alias).
+alias_distance_km: 1.5
+# Surrounding cities above this population that are not in the Cities tab are added as new cities.
+surrounding_city_population: 100000
+surrounding_city_radius_km: 60

@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/
+*.egg-info/
+.pytest_cache/
+# Lead data stays out of the repository (business contact details). Copy it per machine.
+*.xlsx
+*.db
+*.db-wal
+*.db-shm

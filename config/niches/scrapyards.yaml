@@ -1,0 +1,120 @@
+niche: scrapyards
+display_name: Scrapyards and scrap industry (ScrapTrade)
+
+# Values must exist in the workbook's Lists tab ("Industry Type" column).
+industry_enum: Industry Type
+material_enum: Material Focus
+
+categories:
+  include:
+    - Scrap Yard / Metal Recycler
+    - Scrap Collector / Aggregator
+    - Scrap Buyer / Trader
+    - Scrap Exporter
+    - Scrap Importer
+    - Auto Dismantler / Wrecker
+    - E-Waste Recycler
+    - Battery / Lead Recycler
+  optional:            # switch on per run
+    - Steel Mill / Foundry / Smelter
+    - Paper & Cardboard Recycler
+    - Plastics Recycler
+    - Demolition Contractor
+    - Waste Management Company
+    - Manufacturer (Industrial Scrap Generator)
+    - Mining / Resources (Scrap Generator)
+    - Shipbreaker
+    - Tyre / Rubber Recycler
+    - Textile Recycler
+  exclude: []
+
+keyword_packs:
+  en:
+    language: en
+    core: [scrap metal, scrap yard, metal recycling, scrap metal buyer, scrap merchant, scrap dealer]
+    synonyms: [scrapyard, metal recycling centre, car wreckers, auto dismantler, vehicle salvage yard]
+    materials: [copper scrap buyer, aluminium scrap, brass scrap, steel scrap, ferrous scrap, non-ferrous scrap, e-waste recycling, battery recycling]
+    exclusions: [scrapbooking, scrap paper craft]
+  hi:
+    language: hi
+    core: [kabadiwala, bhangarwala, कबाड़ी, स्क्रैप डीलर]
+    synonyms: [कबाड़ खरीदार]
+
+qualification:
+  relevant_if: Buys, processes, trades, exports or imports scrap or recyclable materials, or generates industrial scrap in volume.
+  irrelevant_if: Only sells new metal products, only removes rubbish without recycling, or is a craft/hobby business.
+
+description:
+  must_mention: [materials handled, services, customer types, operating location]
+  max_words: 60
+  hook_max_words: 25
+
+enrichment:
+  max_pages: 5
+  domain_budget_s: 20
+  page_keywords: [contact, about, materials, we buy, prices, services, locations]
+
+sources:
+  # No third-party APIs: Google Maps and web search are driven through SeleniumBase;
+  # company websites and association directories are fetched over plain HTTP.
+  prefer: [google_maps_browser, web_search_browser, association_directories, company_websites]
+  disable: []
+
+# Leads tab layout: 39 legacy columns (order preserved) then the new columns.
+# owner: research = written by sync unless a human edited it; sales = never overwritten;
+# shared_append = auto lines appended only; computed = written from database logic.
+sheet_columns:
+  - {header: "Lead ID", field: lead_id, owner: computed}
+  - {header: "Region", field: region, owner: research}
+  - {header: "Country", field: country, owner: research}
+  - {header: "State / Province", field: state_province, owner: research}
+  - {header: "City", field: city, owner: research}
+  - {header: "Suburb / Area", field: suburb_area, owner: research}
+  - {header: "Company Name", field: company_name, owner: research}
+  - {header: "Website", field: website, owner: research}
+  - {header: "Located in zone?", field: located_in_zone, owner: research}
+  - {header: "Street Address", field: street_address, owner: research}
+  - {header: "Postcode", field: postcode, owner: research}
+  - {header: "Business Reg. No. (ABN)", field: business_reg_no, owner: research}
+  - {header: "Registered Name", field: registered_name, owner: research}
+  - {header: "Registration Status", field: registration_status, owner: research}
+  - {header: "Industry Type", field: industry_type, owner: research}
+  - {header: "Material Focus", field: material_focus, owner: research}
+  - {header: "Company Size", field: company_size, owner: research}
+  - {header: "General Email", field: general_email, owner: research}
+  - {header: "Decision Maker Name", field: decision_maker_name, owner: sales}
+  - {header: "Decision Maker Role", field: decision_maker_role, owner: sales}
+  - {header: "Decision Maker Email", field: decision_maker_email, owner: sales}
+  - {header: "Email Type", field: email_type, owner: research}
+  - {header: "Phone", field: phone, owner: research}
+  - {header: "LinkedIn Company Page", field: linkedin_company_page, owner: research}
+  - {header: "Source URL", field: source_url, owner: research}
+  - {header: "Source Type", field: source_type, owner: research}
+  - {header: "Found via (keyword)", field: found_via_keyword, owner: research}
+  - {header: "Opt-out notice on site?", field: opt_out_notice, owner: research}
+  - {header: "Email Verified", field: email_verified, owner: research}
+  - {header: "Priority", field: priority, owner: sales}
+  - {header: "Outreach Status", field: outreach_status, owner: sales}
+  - {header: "Last Contact Date", field: last_contact_date, owner: sales}
+  - {header: "Date Collected", field: date_collected, owner: research}
+  - {header: "Collected By", field: collected_by, owner: sales}
+  - {header: "Notes", field: notes, owner: shared_append}
+  - {header: "Duplicate?", field: duplicate_flag, owner: computed}
+  - {header: "OK to Email?", field: ok_to_email, owner: computed}
+  - {header: "Website Status", field: website_status, owner: research}
+  - {header: "Last Verified", field: last_verified, owner: research}
+  - {header: "Company Description", field: company_description, owner: research}
+  - {header: "Personalisation Hook", field: personalisation_hook, owner: research}
+  - {header: "Contact Page URL", field: contact_page_url, owner: research}
+  - {header: "Google Maps URL", field: google_maps_url, owner: research}
+  - {header: "Google Maps Place ID", field: google_place_id, owner: research}
+  - {header: "Latitude", field: lat, owner: research}
+  - {header: "Longitude", field: lon, owner: research}
+  - {header: "Research Status", field: research_status, owner: research}
+  - {header: "Confidence", field: confidence, owner: research}
+  - {header: "First Discovered At", field: first_discovered_at, owner: research}
+  - {header: "Last Researched At", field: last_researched_at, owner: research}
+  - {header: "Last Updated At", field: last_updated_at, owner: research}
+  - {header: "Human Review Required", field: human_review_required, owner: computed}
+  - {header: "Review Notes", field: review_notes, owner: sales}
+  - {header: "Lead Key", field: lead_key, owner: computed}
