@@ -533,13 +533,13 @@ def ai_status() -> None:
 @app.command()
 def sync(niche: str = typer.Option("scrapyards"),
          tab: list[str] = typer.Option(None, help="Leads, Search Zones, Cities, Lead_Sources (default: all)")) -> None:
-    """Two-way sync with the shared Google Sheet (credentials and sheet ID from .env)."""
-    from leadforge.sync.client import GoogleSheets
+    """Two-way sync with the shared Google Sheet (Apps Script web app URL, or service account, from .env)."""
+    from leadforge.sync.client import client_from_env
     from leadforge.sync.run import run_sync
 
     cfg, conn = _open()
     try:
-        client = GoogleSheets.from_env(cfg.root)
+        client = client_from_env(cfg.root)
     except RuntimeError as exc:
         typer.echo(str(exc))
         raise typer.Exit(1)

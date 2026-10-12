@@ -97,9 +97,15 @@ no marketing phrasing is used. Results are matched by id, never by position.
 
 ### Phase 6: Google Sheets sync (the shared record between machines)
 
-Setup once per machine: put a **service-account key file** (not a plain API key) at
-`secrets/service-account.json`, share the spreadsheet with that account's email as Editor, and set
-`GOOGLE_SERVICE_ACCOUNT_JSON` and `GOOGLE_SHEET_ID` in `.env` (copy `.env.example`).
+Setup (once per spreadsheet), using the Apps Script web app in [apps_script/Code.gs](apps_script/Code.gs):
+
+1. Open the spreadsheet, **Extensions > Apps Script**, replace the editor contents with `Code.gs`, save.
+2. **Deploy > New deployment > Web app**: Execute as **Me**, Who has access **Anyone**. Authorise.
+3. Copy `.env.example` to `.env` on each machine and set `SHEETS_WEBAPP_URL` to the `/exec` URL.
+
+The web app has no password: anyone with the URL can read and write the sheet, so keep it private.
+After editing `Code.gs`, use **Deploy > Manage deployments > Edit > New version** so the URL stays
+the same. (Alternative: a service account via `GOOGLE_SERVICE_ACCOUNT_JSON` + `GOOGLE_SHEET_ID`.)
 
 ```bash
 leadforge sync                    # Leads, Search Zones, Cities (two-way) + Lead_Sources (append)

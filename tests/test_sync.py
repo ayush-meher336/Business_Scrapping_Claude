@@ -140,3 +140,59 @@ def test_zone_status_from_sheet_and_sources_append(env):
 
 def test_col_letter():
     assert [col_letter(n) for n in (1, 26, 27, 52, 53)] == ["A", "Z", "AA", "AZ", "BA"]
+
+
+def fake_webapp(sheet: MemorySheets):
+    """Behaves like the deployed Code.gs: POST -> 302 -> JSON result."""
+    import json as _json
+
+    import httpx
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            req = _json.loads(request.content)
+            try:
+                if req["action"] == "ensure_tab":
+                    sheet.ensure_tab(req["tab"], req.get("cols", 26))
+                    out = {"created": False}
+                elif req["action"] == "read":
+                    out = {"values": sheet.read(req["tab"])}
+                elif req["action"] == "write_cells":
+                    sheet.write_cells(req["tab"], [tuple(u) for u in req["updates"]])
+                    out = {}
+                elif req["action"] == "append":
+                    sheet.append(req["tab"], req["rows"])
+                    out = {}
+                else:
+                    raise ValueError("unknown action")
+                out["status"] = "success"
+            except Exception as exc:  # noqa: BLE001
+                out = {"status": "error", "message": str(exc)}
+            handler.last = out
+            return httpx.Response(302, headers={"Location": "https://script.googleusercontent.com/echo"})
+        return httpx.Response(200, json=handler.last)
+    return httpx.MockTransport(handler)
+
+
+def test_sync_through_apps_script_client(env):
+    from leadforge.sync.client import AppsScriptSheets
+    conn, sheet, niche = env
+    client = AppsScriptSheets("https://script.google.com/macros/s/x/exec", transport=fake_webapp(sheet))
+    out = run_sync(conn, client, niche)
+    assert out["Leads"]["appended_rows"] == 2
+    edit(sheet, "Leads", "Company Name", "Safari Copper", "Outreach Status", "Email 1 sent")
+    run_sync(conn, client, niche)
+    assert conn.execute("SELECT outreach_status FROM business WHERE lead_id=2").fetchone()[0] == "Email 1 sent"
+    again = run_sync(conn, client, niche)
+    assert again["Leads"]["updated_cells"] == 0
+
+
+def test_apps_script_errors_are_reported(env):
+    from leadforge.sync.client import AppsScriptSheets
+    import httpx
+    t = httpx.MockTransport(lambda r: httpx.Response(200, json={"status": "error", "message": "tab not found: X"}))
+    with pytest.raises(RuntimeError, match="tab not found"):
+        AppsScriptSheets("https://x/exec", transport=t).read("X")
+    html = httpx.MockTransport(lambda r: httpx.Response(200, text="<html>Sign in</html>"))
+    with pytest.raises(RuntimeError, match="did not return JSON"):
+        AppsScriptSheets("https://x/exec", transport=html).read("Leads")

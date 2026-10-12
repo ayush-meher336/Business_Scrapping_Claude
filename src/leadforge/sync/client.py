@@ -78,7 +78,8 @@ class GoogleSheets:
         env = load_env(root / ".env")
         path, sheet = env.get("GOOGLE_SERVICE_ACCOUNT_JSON"), env.get("GOOGLE_SHEET_ID")
         if not path or not sheet:
-            raise RuntimeError("Set GOOGLE_SERVICE_ACCOUNT_JSON and GOOGLE_SHEET_ID in .env (see .env.example)")
+            raise RuntimeError("Set SHEETS_WEBAPP_URL (Apps Script web app) or GOOGLE_SERVICE_ACCOUNT_JSON + "
+                               "GOOGLE_SHEET_ID in .env (see .env.example)")
         p = Path(path)
         if not p.is_absolute():
             p = root / p
@@ -140,7 +141,73 @@ def load_env(path: Path) -> dict[str, str]:
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
                 out[k.strip()] = v.strip().strip('"').strip("'")
-    for k in ("GOOGLE_SERVICE_ACCOUNT_JSON", "GOOGLE_SHEET_ID"):
+    for k in ("GOOGLE_SERVICE_ACCOUNT_JSON", "GOOGLE_SHEET_ID", "SHEETS_WEBAPP_URL"):
         if os.environ.get(k):
             out[k] = os.environ[k]
     return out
+
+
+class AppsScriptSheets:
+    """The spreadsheet through the Apps Script web app in apps_script/Code.gs (runs as its owner)."""
+
+    ROWS_PER_CALL = 2000          # keeps each call well inside Apps Script's time and size limits
+
+    def __init__(self, url: str, timeout: float = 300.0, transport=None):
+        import httpx
+        self.url = url
+        # Apps Script answers a POST with a redirect to the result; follow it.
+        self.http = httpx.Client(follow_redirects=True, timeout=timeout, transport=transport)
+
+    def _call(self, payload: dict) -> dict:
+        import httpx
+        for attempt in range(5):
+            try:
+                r = self.http.post(self.url, json=payload)
+            except httpx.TransportError:
+                if attempt == 4:
+                    raise
+                time.sleep(2 ** attempt)
+                continue
+            if r.status_code in (429, 500, 502, 503, 504) and attempt < 4:
+                time.sleep(2 ** attempt + random.random())
+                continue
+            r.raise_for_status()
+            try:
+                data = r.json()
+            except ValueError:
+                raise RuntimeError("The web app did not return JSON. Check the deployment: Execute as Me, "
+                                   "access Anyone, and that SHEETS_WEBAPP_URL ends in /exec.") from None
+            if data.get("status") != "success":
+                raise RuntimeError(f"Apps Script error: {data.get('message')}")
+            return data
+        raise RuntimeError("Apps Script did not answer")
+
+    def ensure_tab(self, tab, cols):
+        self._call({"action": "ensure_tab", "tab": tab, "cols": cols})
+
+    def read(self, tab):
+        return self._call({"action": "read", "tab": tab}).get("values", [])
+
+    def write_cells(self, tab, updates):
+        batch, rows = [], 0
+        for row, col, block in updates:
+            batch.append([row, col, [["" if v is None else str(v) for v in r] for r in block]])
+            rows += len(block)
+            if rows >= self.ROWS_PER_CALL:
+                self._call({"action": "write_cells", "tab": tab, "updates": batch})
+                batch, rows = [], 0
+        if batch:
+            self._call({"action": "write_cells", "tab": tab, "updates": batch})
+
+    def append(self, tab, rows):
+        for i in range(0, len(rows), self.ROWS_PER_CALL):
+            chunk = [["" if v is None else str(v) for v in r] for r in rows[i:i + self.ROWS_PER_CALL]]
+            self._call({"action": "append", "tab": tab, "rows": chunk})
+
+
+def client_from_env(root: Path):
+    """Apps Script web app if SHEETS_WEBAPP_URL is set, otherwise a service account."""
+    env = load_env(root / ".env")
+    if env.get("SHEETS_WEBAPP_URL"):
+        return AppsScriptSheets(env["SHEETS_WEBAPP_URL"])
+    return GoogleSheets.from_env(root)
