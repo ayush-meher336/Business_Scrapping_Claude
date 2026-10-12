@@ -31,6 +31,11 @@ OPT_OUT_RE = re.compile(
     r"do not (send|email) (us )?(any )?(unsolicited|marketing|spam|promotional)|"
     r"we do not (accept|want|wish to receive) unsolicited|not consent to (receive )?(unsolicited|marketing))", re.I)
 
+# Bot-check interstitials that some sites serve with HTTP 200: not the business's content.
+CHALLENGE_RE = re.compile(r"(performing security verification|verif(y|ies) you are not a bot|checking your browser|"
+                          r"enable javascript and cookies to continue|just a moment\.\.\.|ddos protection by|"
+                          r"attention required! \| cloudflare)", re.I)
+
 PARKED_RE = re.compile(r"(domain (is )?for sale|this domain (may be|is) for sale|parked free|buy this domain|"
                        r"domain has expired|website coming soon|under construction)", re.I)
 
@@ -58,6 +63,7 @@ class Found:
     title: str | None = None
     visible_chars: int = 0
     has_scripts_shell: bool = False
+    challenge: bool = False
 
 
 def decode_cfemail(hexstr: str) -> str | None:
@@ -209,6 +215,7 @@ def extract(html: str, page_url: str, region: str | None, site_domain: str | Non
                     break
         except Exception:
             pass
+    found.challenge = bool(CHALLENGE_RE.search(text[:3000])) and found.visible_chars < 3000
     found.opt_out = bool(OPT_OUT_RE.search(text))
     found.parked = bool(PARKED_RE.search(text[:3000])) and found.visible_chars < 3000
     return found

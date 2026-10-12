@@ -3,7 +3,9 @@
 Python pipeline for discovering, enriching and organising business leads. Design:
 [architecture document](https://claude.ai/code/artifact/903bf892-91a7-45ae-9175-a64829d8330b).
 
-**Status:** Phases 1-4 built (migration, geography/keywords, browser discovery + dedup, website enrichment). No third-party data APIs.
+**Status:** Phases 1-5 built (migration, geography/keywords, browser discovery + dedup, website enrichment, agent-run AI). No third-party data APIs; no model API calls in the code.
+
+An AI agent operating this project should read [AGENT.md](AGENT.md) first.
 
 ## Setup on a new machine
 
@@ -79,6 +81,19 @@ respected, 20 s budget. Collects emails (incl. Cloudflare-protected and "[at]/[d
 JSON-LD address, LinkedIn, contact page, opt-out notices, website status and cleaned page text
 (for the AI step). Filled fields are never overwritten. `Email Verified = Valid` means the address
 is well-formed and its domain has mail servers (MX); there is no mailbox-level check.
+
+### Phase 5: AI qualification, done by the operating agent
+
+```bash
+leadforge ai-export --limit 200   # batches of 20 with labelled evidence + instructions -> data/ai/batches/
+#   the agent writes data/ai/results/<batch_id>.result.json (see AGENT.md)
+leadforge ai-import               # validated import; doubtful results go to human review
+leadforge ai-status
+```
+
+The importer only publishes a description when every material, number and scale claim in it
+appears in that business's evidence, all cited sources exist, values come from the Lists tab and
+no marketing phrasing is used. Results are matched by id, never by position.
 
 Excluded countries (sanctions / instability, from the workbook footnote) are listed in
 `config/geo.yaml`; `build-zones` and `plan` refuse them.

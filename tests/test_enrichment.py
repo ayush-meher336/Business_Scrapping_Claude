@@ -128,3 +128,14 @@ def test_malformed_website_does_not_stop_the_batch():
                            transport=site()))
     assert results["ok"].website_status == "Live"
     assert results["bad"].pages[0].error
+
+
+def test_bot_check_page_is_not_content():
+    page = ("<html><body><p>shop.example Performing security verification. This website uses a security service "
+            "to protect against malicious bots. This page is displayed while the website verifies you are not a bot."
+            "</p></body></html>")
+    results = {}
+    asyncio.run(crawl_many([("cf", "https://www.acmescrap.com.au/", "AU")], CrawlSettings(),
+                           lambda r: results.__setitem__(r.lead_key, r), transport=site({"/": page})))
+    r = results["cf"]
+    assert r.website_status == "Blocked" and r.needs_browser and r.pages[0].html is None

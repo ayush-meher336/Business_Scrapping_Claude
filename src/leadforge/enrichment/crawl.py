@@ -178,6 +178,11 @@ class Crawler:
         final_domain = registrable_domain(home.final_url)
         site = final_domain or res.site_domain
         f = extract(home.html, home.final_url or home.url, region, site)
+        if f.challenge:
+            res.blocked, res.needs_browser = True, True
+            res.website_status = "Blocked"
+            home.html = None                         # never keep a bot-check page as content
+            return
         res.merge(f)
         if f.parked:
             res.website_status = "Parked"

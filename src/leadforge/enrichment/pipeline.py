@@ -94,7 +94,7 @@ def save_result(conn: sqlite3.Connection, b: sqlite3.Row, res: CrawlResult, run_
             """INSERT OR REPLACE INTO page(url_hash, lead_key, url, final_url, http_status, page_type, fetched_at,
                ms, via_browser, text, jsonld, error) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
             (url_hash(p.url), b["lead_key"], p.url, p.final_url, p.status, p.page_type, ts, p.ms,
-             int(p.via_browser), clean_text(p.html) if p.status == 200 else None,
+             int(p.via_browser), clean_text(p.html) if p.status == 200 and res.website_status != "Parked" else None,
              json.dumps(res.found.jsonld[:3], ensure_ascii=False) if p.page_type == "home" and res.found.jsonld
              else None, p.error))
 
@@ -162,7 +162,7 @@ def save_result(conn: sqlite3.Connection, b: sqlite3.Row, res: CrawlResult, run_
     conn.execute(f"UPDATE business SET {', '.join(f'{k}=?' for k in sets)} WHERE lead_key=?",
                  (*sets.values(), b["lead_key"]))
 
-    status = "needs_browser" if res.needs_browser and not res.found.emails else "done"
+    status = "needs_browser" if (res.needs_browser and not res.found.emails) or res.blocked else "done"
     conn.execute(
         """INSERT INTO enrich_task(lead_key, status, attempts, pages, used_browser, ms, error, run_id, updated_at)
            VALUES (?,?,1,?,?,?,?,?,?) ON CONFLICT(lead_key) DO UPDATE SET status=excluded.status,

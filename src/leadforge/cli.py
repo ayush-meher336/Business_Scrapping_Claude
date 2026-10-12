@@ -479,5 +479,54 @@ def verify_emails_cmd(only_unchecked: bool = typer.Option(True, help="Skip leads
         typer.echo(f"  {r[0] or 'blank':<20} {r[1]}")
 
 
+# -- Phase 5: AI enrichment run by the operating agent -----------------------
+
+def _ai_dir(cfg) -> Path:
+    return cfg.resolve(Path("data/ai"))
+
+
+@app.command("ai-export")
+def ai_export(niche: str = typer.Option("scrapyards"), batch_size: int = typer.Option(20),
+              limit: int = typer.Option(200), country: str = typer.Option(None),
+              redo: bool = typer.Option(False, help="Include leads that already have a description")) -> None:
+    """Write evidence batches for the AI agent to data/ai/batches/ (see AGENT.md)."""
+    from leadforge.ai_processing.export import export
+
+    cfg, conn = _open()
+    paths = export(conn, load_niche(cfg.root, niche), _ai_dir(cfg), batch_size, limit, country, redo)
+    typer.echo(f"{len(paths)} batches written to {_ai_dir(cfg) / 'batches'}")
+    for p in paths:
+        typer.echo(f"  {p.name}  ->  write results to data/ai/results/{p.stem}.result.json")
+
+
+@app.command("ai-import")
+def ai_import(niche: str = typer.Option("scrapyards")) -> None:
+    """Validate the agent's result files and save accepted results (doubtful ones go to review)."""
+    from leadforge.ai_processing.importer import import_results
+
+    cfg, conn = _open()
+    n = load_niche(cfg.root, niche)
+    s = import_results(conn, _ai_dir(cfg), n.description.max_words, n.description.hook_max_words,
+                       n.industry_enum, n.material_enum)
+    typer.echo(f"files {s.files}, results {s.results}: accepted {s.accepted} (irrelevant {s.irrelevant}), "
+               f"review {s.review}, rejected {s.rejected}; missing {s.missing}, unknown ids {s.unknown_ids}, "
+               f"malformed {s.malformed}")
+    for p in s.problems[:10]:
+        typer.echo(f"  {p}")
+
+
+@app.command("ai-status")
+def ai_status() -> None:
+    """Batches waiting for the agent, and what has been imported."""
+    cfg, conn = _open()
+    for r in conn.execute("SELECT status, COUNT(*) FROM ai_batch GROUP BY status"):
+        typer.echo(f"  batches {r[0]:<10} {r[1]}")
+    for r in conn.execute("SELECT status, COUNT(*) FROM ai_task GROUP BY status"):
+        typer.echo(f"  leads   {r[0]:<10} {r[1]}")
+    waiting = [r[0] for r in conn.execute("SELECT batch_id FROM ai_batch WHERE status='exported' ORDER BY created_at")
+               if not (_ai_dir(cfg) / "results" / f"{r[0]}.result.json").exists()]
+    typer.echo(f"  waiting for the agent: {len(waiting)} {waiting[:5]}")
+
+
 if __name__ == "__main__":
     app()

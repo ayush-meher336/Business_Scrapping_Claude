@@ -6,7 +6,7 @@ from importlib import resources
 from pathlib import Path
 
 # Numbered files in storage/migrations/ upgrade the base schema (v1) one version at a time.
-MIGRATIONS = {2: "002_geography.sql", 3: "003_discovery.sql", 4: "004_enrichment.sql"}
+MIGRATIONS = {2: "002_geography.sql", 3: "003_discovery.sql", 4: "004_enrichment.sql", 5: "005_ai.sql"}
 SCHEMA_VERSION = max(MIGRATIONS)
 
 
