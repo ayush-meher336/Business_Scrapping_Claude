@@ -3,7 +3,7 @@
 Python pipeline for discovering, enriching and organising business leads. Design:
 [architecture document](https://claude.ai/code/artifact/903bf892-91a7-45ae-9175-a64829d8330b).
 
-**Status:** Phases 1-5 built (migration, geography/keywords, browser discovery + dedup, website enrichment, agent-run AI). No third-party data APIs; no model API calls in the code.
+**Status:** Phases 1-6 built (migration, geography/keywords, browser discovery + dedup, website enrichment, agent-run AI, Google Sheets sync). No third-party data APIs; no model API calls in the code.
 
 An AI agent operating this project should read [AGENT.md](AGENT.md) first.
 
@@ -94,6 +94,25 @@ leadforge ai-status
 The importer only publishes a description when every material, number and scale claim in it
 appears in that business's evidence, all cited sources exist, values come from the Lists tab and
 no marketing phrasing is used. Results are matched by id, never by position.
+
+### Phase 6: Google Sheets sync (the shared record between machines)
+
+Setup once per machine: put a **service-account key file** (not a plain API key) at
+`secrets/service-account.json`, share the spreadsheet with that account's email as Editor, and set
+`GOOGLE_SERVICE_ACCOUNT_JSON` and `GOOGLE_SHEET_ID` in `.env` (copy `.env.example`).
+
+```bash
+leadforge sync                    # Leads, Search Zones, Cities (two-way) + Lead_Sources (append)
+leadforge sync --tab Leads
+```
+
+Each machine keeps its own SQLite working copy; the sheet is shared. Rows are matched by the hidden
+`Lead Key` column, never by row number. Sales columns (priority, outreach status, decision maker,
+review notes) always keep the sheet's value; research columns are written by the database unless a
+person edited the cell since the last sync, in which case the edit wins and is pulled in (logged in
+`sync_conflict`); notes from both sides are combined. Rows added by other machines are pulled in,
+rows typed into the sheet by hand get a key, and the original workbook's rows are adopted by Lead ID
+and name instead of being duplicated. Do not delete or edit the `Lead Key` column.
 
 Excluded countries (sanctions / instability, from the workbook footnote) are listed in
 `config/geo.yaml`; `build-zones` and `plan` refuse them.

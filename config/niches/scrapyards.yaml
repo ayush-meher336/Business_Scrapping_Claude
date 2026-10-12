@@ -105,6 +105,8 @@ sheet_columns:
   - {header: "Last Verified", field: last_verified, owner: research}
   - {header: "Company Description", field: company_description, owner: research}
   - {header: "Personalisation Hook", field: personalisation_hook, owner: research}
+  - {header: "Additional Phone Numbers", field: additional_phones, owner: research}
+  - {header: "Additional Email Addresses", field: additional_emails, owner: research}
   - {header: "Contact Page URL", field: contact_page_url, owner: research}
   - {header: "Google Maps URL", field: google_maps_url, owner: research}
   - {header: "Google Maps Place ID", field: google_place_id, owner: research}

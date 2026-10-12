@@ -528,5 +528,28 @@ def ai_status() -> None:
     typer.echo(f"  waiting for the agent: {len(waiting)} {waiting[:5]}")
 
 
+# -- Phase 6: Google Sheets sync ---------------------------------------------
+
+@app.command()
+def sync(niche: str = typer.Option("scrapyards"),
+         tab: list[str] = typer.Option(None, help="Leads, Search Zones, Cities, Lead_Sources (default: all)")) -> None:
+    """Two-way sync with the shared Google Sheet (credentials and sheet ID from .env)."""
+    from leadforge.sync.client import GoogleSheets
+    from leadforge.sync.run import run_sync
+
+    cfg, conn = _open()
+    try:
+        client = GoogleSheets.from_env(cfg.root)
+    except RuntimeError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(1)
+    tabs = tuple(tab) if tab else ("Leads", "Search Zones", "Cities", "Lead_Sources")
+    for name, r in run_sync(conn, client, load_niche(cfg.root, niche), tabs).items():
+        typer.echo(f"  {name}: {r}")
+    n = conn.execute("SELECT COUNT(*) FROM sync_conflict").fetchone()[0]
+    if n:
+        typer.echo(f"  conflicts recorded so far: {n} (sheet edits won; see sync_conflict table)")
+
+
 if __name__ == "__main__":
     app()

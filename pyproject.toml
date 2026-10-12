@@ -20,6 +20,8 @@ dependencies = [
     "tldextract>=5.1",
     "trafilatura>=1.12",
     "dnspython>=2.6",
+    "gspread>=6.0",
+    "google-auth>=2.29",
 ]
 
 [project.optional-dependencies]

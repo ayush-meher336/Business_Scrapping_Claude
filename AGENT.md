@@ -14,6 +14,9 @@ environment active (`.venv\Scripts\activate` on Windows, `source .venv/bin/activ
 
 ## The research cycle
 
+Start every session with `leadforge sync` so rows other machines added are pulled in first, and
+end it with `leadforge sync` so your results reach the shared sheet.
+
 ```bash
 leadforge status                                   # what the database holds
 leadforge scan-industrial --priority A --limit 10  # 1. industrial areas per city (Maps)
@@ -25,6 +28,7 @@ leadforge verify-emails                            # 5b. MX check (Valid = domai
 leadforge ai-export --limit 200                    # 5c. evidence batches for you  -> data/ai/batches/
 #   ... you write data/ai/results/<batch_id>.result.json for each batch (below) ...
 leadforge ai-import                                # 5d. validated import
+leadforge sync                                     # 6. share results through the Google Sheet
 leadforge coverage --country "<Country>"           # progress by city
 ```
 

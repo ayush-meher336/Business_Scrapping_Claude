@@ -10,3 +10,5 @@ data/
 *.db
 *.db-wal
 *.db-shm
+secrets/
+*service-account*.json
