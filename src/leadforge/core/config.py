@@ -25,6 +25,7 @@ class AppConfig(BaseModel):
     concurrency: dict[str, Any] = {}
     enrichment: dict[str, Any] = {}
     ai: dict[str, Any] = {}
+    discovery: dict[str, Any] = {}
 
     def resolve(self, p: Path) -> Path:
         return p if p.is_absolute() else self.root / p

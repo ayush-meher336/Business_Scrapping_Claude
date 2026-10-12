@@ -294,5 +294,121 @@ def coverage(country: str = typer.Option(None), limit: int = typer.Option(40)) -
         typer.echo(f"... {len(rows) - limit} more (use --limit)")
 
 
+# -- Phase 3: discovery ------------------------------------------------------
+
+def _session_factory(cfg, source: str, headed: bool):
+    from leadforge.discovery.gmaps import MapsSession
+    from leadforge.discovery.websearch import WebSearchSession
+
+    d = cfg.discovery
+    headless = d.get("headless", True) and not headed
+    if source == "google_maps_browser":
+        return lambda: MapsSession(headless=headless, max_results=d.get("max_results_per_search", 60),
+                                   min_delay_s=d.get("min_delay_seconds", 4), max_delay_s=d.get("max_delay_seconds", 8))
+    if source == "web_search_browser":
+        return lambda: WebSearchSession(headless=headless)
+    raise typer.BadParameter(f"no browser collector for source {source!r}")
+
+
+@app.command("backfill-identity")
+def backfill_identity_cmd() -> None:
+    """Compute domain, E.164 phone and normalised name for existing leads (needed for dedup)."""
+    from leadforge.dedup.resolver import backfill_identity
+
+    _, conn = _open()
+    with conn:
+        typer.echo(backfill_identity(conn))
+
+
+@app.command()
+def discover(
+    source: str = typer.Option("google_maps_browser", help="google_maps_browser | web_search_browser"),
+    jobs: int = typer.Option(20, help="Maximum search jobs to run"),
+    workers: int = typer.Option(None, help="Parallel browsers (default from config/app.yaml)"),
+    country: str = typer.Option(None), city: str = typer.Option(None),
+    niche: str = typer.Option("scrapyards"),
+    headed: bool = typer.Option(False, help="Show the browser windows"),
+) -> None:
+    """Run queued search jobs in the browser and resolve every result into businesses."""
+    from leadforge.dedup.resolver import backfill_identity
+    from leadforge.discovery.runner import Relevance, run
+
+    cfg, conn = _open()
+    n = load_niche(cfg.root, niche)
+    with conn:
+        backfill_identity(conn)
+    relevance = Relevance(n.discovery.include, n.discovery.exclude)
+
+    def progress(job, results, new):
+        typer.echo(f"  [{job['job_id']}] {job['query'][:60]:<60} {results:>3} results, {new:>3} new")
+
+    stats = run(conn, source, _session_factory(cfg, source, headed), relevance, jobs,
+                workers or cfg.discovery.get("workers", 2), country, city, progress)
+    typer.echo(f"jobs done {stats.jobs_done}, failed {stats.jobs_failed}; candidates {stats.candidates}: "
+               f"new {stats.new}, merged {stats.merged}, review {stats.review}, rejected {stats.rejected}")
+    for e in stats.errors[:5]:
+        typer.echo(f"  error: {e}")
+    if stats.blocked:
+        typer.echo(f"STOPPED: {stats.blocked}\nA person needs to check this in a normal browser before the next run.")
+        raise typer.Exit(2)
+
+
+@app.command("scan-industrial")
+def scan_industrial(
+    country: list[str] = typer.Option(None), city: str = typer.Option(None),
+    tier: int = typer.Option(None), priority: str = typer.Option("A"),
+    limit: int = typer.Option(10, help="Maximum cities this run"),
+    headed: bool = typer.Option(False),
+) -> None:
+    """Find industrial estates / business parks on Google Maps for cities with no area data yet."""
+    from leadforge.discovery.gmaps import BlockedError
+    from leadforge.discovery.industrial import scan_city
+
+    cfg, conn = _open()
+    countries = _countries(conn, country, tier) if (country or tier) else None
+    have = {r[0] for r in conn.execute("SELECT DISTINCT place_id FROM osm_feature")}
+    todo = [c for c in _target_cities(conn, countries, city, priority) if c["place_id"] not in have][:limit]
+    factory = _session_factory(cfg, "google_maps_browser", headed)
+    with factory() as session:
+        for c in todo:
+            try:
+                n = scan_city(conn, session, c["place_id"], c["name"], c["country"])
+            except BlockedError as exc:
+                typer.echo(f"STOPPED: {exc}")
+                raise typer.Exit(2)
+            typer.echo(f"  {c['country']} / {c['name']}: {n} industrial areas")
+
+
+@app.command("dedup-report")
+def dedup_report(sample: int = typer.Option(100, help="Random new leads to export for a manual duplicate check")) -> None:
+    """Resolution counts, open review items, and a CSV sample for measuring the duplicate rate by hand."""
+    import csv
+
+    cfg, conn = _open()
+    for r in conn.execute("SELECT resolution, COUNT(*) n FROM candidate GROUP BY resolution ORDER BY n DESC"):
+        typer.echo(f"  {r['resolution'] or 'unresolved':<10} {r['n']:>6}")
+    typer.echo(f"  merge rules: {dict(conn.execute('SELECT rule, COUNT(*) FROM merge_log GROUP BY rule').fetchall())}")
+    open_reviews = conn.execute("SELECT COUNT(*) FROM dedup_review WHERE status='open'").fetchone()[0]
+    typer.echo(f"  open reviews: {open_reviews}")
+    # Automatic cross-check: new records that share a place id, domain+suburb or phone with another record.
+    dupes = conn.execute("""
+        SELECT COUNT(*) FROM business b WHERE b.research_status != 'legacy' AND EXISTS (
+          SELECT 1 FROM business o WHERE o.lead_key != b.lead_key AND (
+            (b.google_place_id IS NOT NULL AND o.google_place_id = b.google_place_id) OR
+            (b.phone_e164 IS NOT NULL AND o.phone_e164 = b.phone_e164 AND o.name_norm = b.name_norm)))""").fetchone()[0]
+    total_new = conn.execute("SELECT COUNT(*) FROM business WHERE research_status != 'legacy'").fetchone()[0]
+    typer.echo(f"  new records: {total_new}; with an exact-identity twin: {dupes}")
+    out = cfg.resolve(cfg.paths.exports) / "dedup_sample.csv"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    rows = conn.execute("""SELECT lead_id, company_name, city, suburb_area, street_address, phone, website, maps_category
+                           FROM business WHERE research_status != 'legacy' ORDER BY RANDOM() LIMIT ?""", (sample,))
+    with open(out, "w", newline="", encoding="utf-8-sig") as fh:
+        w = csv.writer(fh)
+        w.writerow(["lead_id", "company_name", "city", "suburb", "address", "phone", "website", "category",
+                    "is_duplicate_of_lead_id (fill in)"])
+        w.writerows(tuple(r) + ("",) for r in rows)
+    typer.echo(f"  sample for manual check: {out}")
+
+
 if __name__ == "__main__":
     app()

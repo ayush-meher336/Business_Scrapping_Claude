@@ -3,7 +3,7 @@
 Python pipeline for discovering, enriching and organising business leads. Design:
 [architecture document](https://claude.ai/code/artifact/903bf892-91a7-45ae-9175-a64829d8330b).
 
-**Status:** Phase 1 (workbook migration) complete; Phase 2 (geography and keywords) in progress.
+**Status:** Phases 1-3 built (migration, geography/keywords, browser discovery + dedup). No third-party data APIs.
 
 ## Setup on a new machine
 
@@ -51,6 +51,20 @@ leadforge keywords                           # sync keyword library + yields fro
 leadforge plan --country Australia --source google_maps_browser --source web_search_browser
 leadforge coverage --country Australia
 ```
+
+### Phase 3: discovery (SeleniumBase, no APIs)
+
+```bash
+leadforge scan-industrial --tier 1 --limit 10          # Google Maps: industrial estates per city (zone evidence)
+leadforge build-zones --tier 1                          # turn that evidence into zones
+leadforge plan --country Australia --city Sydney        # queue Maps searches (zone x keyword)
+leadforge discover --jobs 30 --country Australia        # run them: 2 browsers, results resolved as they arrive
+leadforge dedup-report                                  # resolution counts + CSV sample for a manual duplicate check
+```
+
+Google Maps is read from the results list in one pass (listings are not opened one by one).
+Pacing is 4-8 s per search per browser. If Google shows a verification page the run stops with
+exit code 2; nothing tries to get past it. Check it in a normal browser before running again.
 
 Excluded countries (sanctions / instability, from the workbook footnote) are listed in
 `config/geo.yaml`; `build-zones` and `plan` refuse them.

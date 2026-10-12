@@ -55,7 +55,7 @@ def verify(conn: sqlite3.Connection, xlsx: Path) -> VerifyResult:
     def count(sql: str) -> int:
         return conn.execute(sql).fetchone()[0]
 
-    res.check("Leads (rows with Company Name)", data_rows("Leads", "Lead ID", [6]), count("SELECT COUNT(*) FROM business"))
+    res.check("Leads (rows with Company Name)", data_rows("Leads", "Lead ID", [6]), count("SELECT COUNT(*) FROM business WHERE legacy_row IS NOT NULL"))
     res.check("Countries", data_rows("Countries", "Tier", [2]), count("SELECT COUNT(*) FROM country"))
     res.check("Cities", data_rows("Cities", "Loc ID", [4, 6]),
               count("SELECT COUNT(*) FROM geo_place WHERE level='city' AND source='legacy_workbook'"))
@@ -85,11 +85,13 @@ def verify(conn: sqlite3.Connection, xlsx: Path) -> VerifyResult:
                 if got != want_id:
                     field_mismatches += 1
                     res.mismatches.append(f"Leads row {n}: Lead ID {want_id} stored as {got}")
+            elif want is None:
+                continue        # research may fill a blank workbook cell; it may never change a filled one
             elif want != got:
                 field_mismatches += 1
                 if field_mismatches <= MAX_LISTED:
                     res.mismatches.append(f"Leads row {n} {f}: {want!r} != {got!r}")
-    res.check("Lead field mismatches", 0, field_mismatches)
+    res.check("Workbook values changed", 0, field_mismatches)
     res.check("Duplicate Lead IDs", 0, count(
         "SELECT COUNT(*) FROM (SELECT lead_id FROM business GROUP BY lead_id HAVING COUNT(*) > 1)"))
     return res

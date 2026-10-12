@@ -25,3 +25,11 @@ ai:
   model: claude-haiku-5-5
   escalation_model: claude-sonnet-5-5
   chars_per_business: 1500
+
+# Browser discovery (SeleniumBase). Conservative pacing; a verification page stops the run.
+discovery:
+  headless: true
+  workers: 2                  # browsers in parallel
+  max_results_per_search: 60
+  min_delay_seconds: 4
+  max_delay_seconds: 8

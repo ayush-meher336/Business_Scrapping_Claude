@@ -45,6 +45,11 @@ class Sources(BaseModel):
     disable: list[str] = []
 
 
+class Discovery(BaseModel):
+    include: list[str] = []
+    exclude: list[str] = []
+
+
 class SheetColumn(BaseModel):
     header: str
     field: str
@@ -63,6 +68,7 @@ class NicheConfig(BaseModel):
     enrichment: Enrichment = Enrichment()
     sources: Sources = Sources()
     sheet_columns: list[SheetColumn] = []
+    discovery: Discovery = Discovery()
 
 
 def load_niche(root: Path, name: str) -> NicheConfig:

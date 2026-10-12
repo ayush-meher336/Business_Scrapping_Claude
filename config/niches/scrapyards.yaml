@@ -118,3 +118,28 @@ sheet_columns:
   - {header: "Human Review Required", field: human_review_required, owner: computed}
   - {header: "Review Notes", field: review_notes, owner: sales}
   - {header: "Lead Key", field: lead_key, owner: computed}
+
+# Discovery relevance: a hit is kept when its Maps category, name or snippet matches an include
+# pattern and no exclude pattern. Rejected hits stay in the candidate table with the reason.
+discovery:
+  include:
+    - 'scrap'
+    - 'recycl'
+    - 'salvage'
+    - 'wreck'
+    - 'dismantl'
+    - 'junk ?yard'
+    - 'metal (dealer|buyer|processing|merchant|trader|works)'
+    - 'non[- ]?ferrous|ferrous'
+    - 'copper|aluminium|aluminum|brass|stainless'
+    - 'e-?waste'
+    - 'battery'
+    - 'waste management|waste collection'
+    - 'demolition'
+    - 'smelter|foundry|steel mill'
+    - 'kabad|bhangar|ferraille|schrott|chatarra|sucata|rottami'
+    - '废'
+  exclude:
+    - 'car wash'
+    - 'scrapbook'
+    - 'restaurant|cafe|hotel'
