@@ -461,5 +461,23 @@ def enrich_bench(country: str = typer.Option("Australia"), city: str = typer.Opt
     typer.echo(pipeline.bench(conn, country, city, limit, _crawl_settings(cfg)))
 
 
+@app.command("verify-emails")
+def verify_emails_cmd(only_unchecked: bool = typer.Option(True, help="Skip leads already marked Valid/Invalid")) -> None:
+    """MX-check the email domains of all leads (Valid = domain accepts mail). DNS only, no SMTP."""
+    import asyncio
+
+    from leadforge.enrichment.pipeline import verify_emails
+
+    _, conn = _open()
+    sql = "SELECT lead_key FROM business WHERE general_email IS NOT NULL"
+    if only_unchecked:
+        sql += " AND (email_verified IS NULL OR email_verified IN ('Not checked', ''))"
+    keys = [r[0] for r in conn.execute(sql)]
+    n = asyncio.run(verify_emails(conn, keys))
+    typer.echo(f"checked {len(keys)} leads, status set on {n}")
+    for r in conn.execute("SELECT email_verified, COUNT(*) FROM business WHERE general_email IS NOT NULL GROUP BY 1"):
+        typer.echo(f"  {r[0] or 'blank':<20} {r[1]}")
+
+
 if __name__ == "__main__":
     app()
