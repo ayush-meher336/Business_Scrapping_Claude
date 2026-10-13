@@ -296,6 +296,13 @@ def coverage(country: str = typer.Option(None), limit: int = typer.Option(40)) -
 
 # -- Phase 3: discovery ------------------------------------------------------
 
+def _saturation(cfg):
+    from leadforge.discovery.runner import Saturation
+
+    d = cfg.discovery
+    return Saturation(d.get("zone_stop_after_empty", 3), d.get("city_window", 12), d.get("city_min_new", 2))
+
+
 def _session_factory(cfg, source: str, headed: bool):
     from leadforge.discovery.gmaps import MapsSession
     from leadforge.discovery.websearch import WebSearchSession
@@ -328,6 +335,7 @@ def discover(
     country: str = typer.Option(None), city: str = typer.Option(None),
     niche: str = typer.Option("scrapyards"),
     headed: bool = typer.Option(False, help="Show the browser windows"),
+    no_saturation: bool = typer.Option(False, help="Keep searching zones/cities that stopped yielding new businesses"),
 ) -> None:
     """Run queued search jobs in the browser and resolve every result into businesses."""
     from leadforge.dedup.resolver import backfill_identity
@@ -343,7 +351,10 @@ def discover(
         typer.echo(f"  [{job['job_id']}] {job['query'][:60]:<60} {results:>3} results, {new:>3} new")
 
     stats = run(conn, source, _session_factory(cfg, source, headed), relevance, jobs,
-                workers or cfg.discovery.get("workers", 2), country, city, progress)
+                workers or cfg.discovery.get("workers", 2), country, city, progress,
+                saturation=None if no_saturation else _saturation(cfg))
+    for msg in stats.saturation:
+        typer.echo(f"  stopped: {msg}")
     typer.echo(f"jobs done {stats.jobs_done}, failed {stats.jobs_failed}; candidates {stats.candidates}: "
                f"new {stats.new}, merged {stats.merged}, review {stats.review}, rejected {stats.rejected}")
     for e in stats.errors[:5]:
@@ -555,8 +566,8 @@ def sync(niche: str = typer.Option("scrapyards"),
 
 BENCH_SUITE = [(100, "Australia", "Sydney", "100 / Sydney (old benchmark area)"),
                (100, "Australia", "Melbourne", "100 / Melbourne (new area)"),
-               (500, "Australia", "Brisbane", "500 / Brisbane"),
-               (1000, "Australia", "Perth", "1,000 / Perth")]
+               (500, "Australia", None, "500 / Australia, multi-city"),
+               (1000, "Australia", None, "1,000 / Australia, multi-city")]
 
 
 @app.command()
@@ -590,13 +601,15 @@ def bench(
         pending = conn.execute("""SELECT COUNT(*) FROM search_job j JOIN zone z USING(zone_id)
                                   WHERE j.status='pending' AND z.country=? AND (? IS NULL OR z.city=?)""",
                                (ctry, cty, cty)).fetchone()[0]
-        if pending < tgt // 10:
+        if pending < tgt // 5:
             with conn:
                 plan(conn, niche, [ctry], ["google_maps_browser"], f"plan-{new_ulid()}", 4, cty)
         typer.echo(f"Running {label} ...")
         r = run_bench(conn, _session_factory(cfg, "google_maps_browser", False), relevance, _crawl_settings(cfg),
-                      tgt, ctry, cty, workers or cfg.discovery.get("workers", 2), sync_fn, label)
+                      tgt, ctry, cty, workers or cfg.discovery.get("workers", 2), sync_fn, label,
+                      _saturation(cfg))
         per100 = r.total_s / max(r.businesses, 1) * 100
+        typer.echo(f"  cities: {', '.join(r.discovery.get('cities', []))}; areas closed: {r.discovery.get('areas_closed')}")
         typer.echo(f"  {r.businesses} businesses in {r.total_s:.0f} s ({per100:.0f} s per 100; old: 616) "
                    f"stages {{{', '.join(f'{k}: {v:.0f}s' for k, v in r.stages.items())}}}")
         results.append(r)

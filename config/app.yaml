@@ -33,3 +33,7 @@ discovery:
   max_results_per_search: 60
   min_delay_seconds: 4
   max_delay_seconds: 8
+  # Saturation: stop searching where new businesses have dried up, move on elsewhere.
+  zone_stop_after_empty: 3    # zone closed after this many searches in a row found nothing new
+  city_window: 12             # look at a city's last N searches ...
+  city_min_new: 2             # ... and stop the city if they found fewer new businesses than this

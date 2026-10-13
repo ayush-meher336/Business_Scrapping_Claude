@@ -48,7 +48,8 @@ def found_in_run(conn: sqlite3.Connection, run_id: str) -> list[str]:
 
 
 def run_bench(conn: sqlite3.Connection, session_factory, relevance: runner.Relevance, settings: CrawlSettings,
-              target: int, country: str, city: str | None, workers: int, sync_fn=None, label: str = "") -> BenchResult:
+              target: int, country: str, city: str | None, workers: int, sync_fn=None, label: str = "",
+              saturation: runner.Saturation | None = None) -> BenchResult:
     res = BenchResult(label or f"{target}", target, f"{city or 'all'}, {country}")
     run_id = f"bench-{new_ulid()}"
     t_start = time.perf_counter()
@@ -60,14 +61,17 @@ def run_bench(conn: sqlite3.Connection, session_factory, relevance: runner.Relev
 
     stats = runner.run(conn, "google_maps_browser", session_factory, relevance, max_jobs=10_000, workers=workers,
                        country=country, city=city, on_job=on_job, stop_when=lambda rid: len(found_in_run(conn, rid)) >= target,
-                       run_id=run_id)
+                       run_id=run_id, saturation=saturation)
     res.stages["discovery"] = time.perf_counter() - t_start
     res.first_record_s = first[0] if first else None
     keys = found_in_run(conn, run_id)
     res.businesses = len(keys)
     res.discovery = {"jobs": stats.jobs_done, "failed": stats.jobs_failed, "candidates": stats.candidates,
                      "new": stats.new, "merged": stats.merged, "review": stats.review, "rejected": stats.rejected,
-                     "blocked": stats.blocked}
+                     "blocked": stats.blocked, "areas_closed": len(stats.saturation),
+                     "cities": sorted({r[0] for r in conn.execute(
+                         "SELECT DISTINCT z.city FROM search_job j JOIN zone z USING(zone_id) WHERE j.claimed_by=?",
+                         (run_id,))})}
     if stats.blocked:
         res.notes.append(f"Discovery stopped by a verification page: {stats.blocked}")
 

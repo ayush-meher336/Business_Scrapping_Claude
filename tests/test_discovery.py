@@ -247,3 +247,16 @@ def test_service_area_listing_merges_by_domain(ctx_conn):
     r = resolve(ctx_conn, raw(name="KM Scrap Metals Pty Ltd", lat=-33.73, lon=151.0,
                               website="https://www.kmscrap.com.au/", place_id="ChIJkm2"), ctx())
     assert r.action == "merged" and r.lead_key == a.lead_key and r.reason == "2c:domain+no-address"
+
+
+def test_saturated_zone_and_city_stop(ctx_conn):
+    from leadforge.discovery.runner import Saturation
+    _queue(ctx_conn, jobs=4)                        # 2 zones x 4 keywords, same city
+    rel = Relevance(["scrap"], [])
+    # Every search returns the same listing: after the first, nothing is new.
+    stats = run(ctx_conn, "google_maps_browser", lambda: FakeSession(lambda q: FEED), rel, max_jobs=50, workers=1,
+                saturation=Saturation(zone_after_empty=2, city_window=3, city_min_new=1))
+    assert stats.saturation, "expected zones/city to be closed"
+    skipped = ctx_conn.execute("SELECT COUNT(*) FROM search_job WHERE status='skipped'").fetchone()[0]
+    assert skipped >= 1 and stats.jobs_done < 8
+    assert ctx_conn.execute("SELECT COUNT(*) FROM zone WHERE status='Exhausted'").fetchone()[0] >= 1
