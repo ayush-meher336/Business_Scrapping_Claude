@@ -174,7 +174,7 @@ def locate(conn: sqlite3.Connection, cand: dict, ctx: Context) -> tuple[int | No
     ran the search says little about where a business is.
     """
     lat, lon = cand.get("lat"), cand.get("lon")
-    if lat is None:
+    if lat is None or lon is None:
         return ctx.zone_id, ctx.area, None
     lo_lat, hi_lat, lo_lon, hi_lon = bbox(lat, lon, ZONE_SNAP_KM)
     zones = conn.execute(
@@ -256,6 +256,8 @@ def _fill_gaps(conn, b: sqlite3.Row, cand: dict) -> None:
 
 def prepare(raw: dict, iso2: str | None) -> dict:
     cand = dict(raw)
+    if cand.get("lat") is None or cand.get("lon") is None:
+        cand["lat"] = cand["lon"] = None          # half a coordinate is no coordinate
     cand["website"] = clean_website(cand.get("website"))
     cand["domain"] = registrable_domain(cand.get("website"))
     cand["phone_e164"] = phone_e164(cand.get("phone"), iso2)

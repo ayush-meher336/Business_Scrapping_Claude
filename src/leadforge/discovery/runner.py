@@ -222,7 +222,16 @@ def run(conn: sqlite3.Connection, source: str, session_factory: Callable[[], obj
                                      (status, str(exc)[:500], job["job_id"]))
                         conn.commit()
                         continue
-                    new = store_results(conn, job, results, relevance, run_id, stats)
+                    try:
+                        new = store_results(conn, job, results, relevance, run_id, stats)
+                    except Exception as exc:  # a bad result must not end a long run
+                        conn.rollback()
+                        stats.jobs_failed += 1
+                        stats.errors.append(f"job {job['job_id']} (saving): {exc}")
+                        conn.execute("UPDATE search_job SET status='failed', error=?, claimed_by=NULL WHERE job_id=?",
+                                     (f"saving results: {exc}"[:500], job["job_id"]))
+                        conn.commit()
+                        continue
                     stats.jobs_done += 1
                     if saturation:
                         stats.saturation += apply_saturation(conn, job, saturation)

@@ -7,30 +7,36 @@ Python pipeline for discovering, enriching and organising business leads. Design
 
 An AI agent operating this project should read [AGENTS.md](AGENTS.md) first.
 
-## Setup on a new machine
+## Run it on another computer
 
-Needs Python 3.12+ and git. Works on Windows, macOS and Linux.
+The quickest way is to hand the repository to an AI agent (Antigravity, Claude Code, …) and say
+**"Run the discovery engine."** The agent reads [AGENTS.md](AGENTS.md), sets everything up, starts
+the engine and does the AI step continuously. By hand it is:
 
 ```bash
+# Requirements: Python 3.12+, Git, Google Chrome
 git clone https://github.com/ayush-meher336/Business_Scrapping_Claude.git
 cd Business_Scrapping_Claude
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[dev]"   # macOS/Linux: .venv/bin/python
+.venv\Scripts\python -m pip install -e ".[dev]"     # macOS/Linux: .venv/bin/python ...
+.venv\Scriptsctivate                              # macOS/Linux: source .venv/bin/activate
+copy .env.example .env                               # then set SHEETS_WEBAPP_URL=<your web app /exec URL>
+leadforge bootstrap                                  # reference data from seed/, GeoNames, leads from the sheet
+leadforge autopilot                                  # runs until stopped (Ctrl+C or create data/STOP)
 ```
 
-The lead workbook and the database are **not** in the repository (they hold business contact
-details). Copy `Scrap_Outreach_Lead_Tracker.xlsx` into the project folder, then rebuild:
+The workbook and the database are not in the repository (business contact data). `bootstrap`
+does not need them: it loads reference data from `seed/reference.json.gz` and pulls every lead from
+the shared Google Sheet. If `Scrap_Outreach_Lead_Tracker.xlsx` is in the folder, it imports that instead.
 
-```bash
-leadforge migrate        # workbook -> data/lead_research.db, verified
-leadforge geo-import     # downloads GeoNames (about 14 MB) into data/cache/
-leadforge geocode
-leadforge keywords
-leadforge build-zones --tier 1 --priority A
-```
+**Long runs:** keep the computer awake (disable sleep), and leave `leadforge autopilot` running in
+its own terminal. All stages run concurrently; after a restart it resumes where it stopped.
+`leadforge autopilot-status` shows what each part is doing. To update the code later: create
+`data/STOP`, `git pull`, `pip install -e ".[dev]"`, start `leadforge autopilot` again.
 
-Activate the environment first (`.venv\Scripts\activate` on Windows, `source .venv/bin/activate`
-elsewhere) or call `.venv/Scripts/leadforge` directly.
+**Several machines at once:** each keeps its own local database and syncs with the same Google
+Sheet every 15 minutes. To avoid two machines searching the same places, give each its own
+countries: `leadforge autopilot --country India` on one, `--country Australia` on another.
 
 ## Commands
 

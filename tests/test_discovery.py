@@ -260,3 +260,25 @@ def test_saturated_zone_and_city_stop(ctx_conn):
     skipped = ctx_conn.execute("SELECT COUNT(*) FROM search_job WHERE status='skipped'").fetchone()[0]
     assert skipped >= 1 and stats.jobs_done < 8
     assert ctx_conn.execute("SELECT COUNT(*) FROM zone WHERE status='Exhausted'").fetchone()[0] >= 1
+
+
+def test_half_coordinates_and_saving_errors_do_not_stop_a_run(ctx_conn):
+    r = resolve(ctx_conn, raw(name="Half Coord Metals", lat=-33.9, lon=None, place_id="ChIJhalf"), ctx())
+    assert r.action == "new"
+    _queue(ctx_conn)
+    import leadforge.discovery.runner as rn
+    real = rn.store_results
+    calls = {"n": 0}
+
+    def flaky(*a, **kw):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ValueError("bad row")
+        return real(*a, **kw)
+    rn.store_results = flaky
+    try:
+        stats = run(ctx_conn, "google_maps_browser", lambda: FakeSession(lambda q: FEED), Relevance(["scrap"], []),
+                    max_jobs=4, workers=1)
+    finally:
+        rn.store_results = real
+    assert stats.jobs_failed == 1 and stats.jobs_done == 3
