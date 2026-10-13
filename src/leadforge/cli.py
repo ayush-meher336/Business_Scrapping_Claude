@@ -500,7 +500,7 @@ def _ai_dir(cfg) -> Path:
 def ai_export(niche: str = typer.Option("scrapyards"), batch_size: int = typer.Option(20),
               limit: int = typer.Option(200), country: str = typer.Option(None),
               redo: bool = typer.Option(False, help="Include leads that already have a description")) -> None:
-    """Write evidence batches for the AI agent to data/ai/batches/ (see AGENT.md)."""
+    """Write evidence batches for the AI agent to data/ai/batches/ (see AGENTS.md)."""
     from leadforge.ai_processing.export import export
 
     cfg, conn = _open()
@@ -617,6 +617,111 @@ def bench(
             typer.echo("  " + "; ".join(r.notes))
             break
     typer.echo(f"report: {report(results, cfg.resolve(cfg.paths.exports))}")
+
+
+# -- Long-running operation ---------------------------------------------------
+
+@app.command()
+def autopilot(
+    niche: str = typer.Option("scrapyards"),
+    country: list[str] = typer.Option(None, help="Limit to these countries (default: all, by tier)"),
+    no_sync: bool = typer.Option(False, help="Do not sync with the Google Sheet"),
+    ai_batches: int = typer.Option(3, help="Batches kept waiting for the AI agent"),
+) -> None:
+    """Run everything concurrently until stopped (Ctrl+C or create data/STOP). Resumes where it left off."""
+    import logging
+
+    from leadforge.autopilot import Autopilot, AutopilotSettings
+
+    cfg, conn = _open()
+    conn.close()
+    log_path = cfg.resolve(Path("data/autopilot.log"))
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(threadName)-10s %(levelname)s %(message)s",
+                        handlers=[logging.FileHandler(log_path, encoding="utf-8"), logging.StreamHandler()])
+    with_sync = not no_sync
+    if with_sync:
+        from leadforge.sync.client import client_from_env
+        try:
+            client_from_env(cfg.root)
+        except RuntimeError as exc:
+            typer.echo(f"Sheet sync off: {exc}")
+            with_sync = False
+    s = AutopilotSettings(countries=list(country or []), ai_outstanding_batches=ai_batches, with_sync=with_sync)
+    typer.echo(f"autopilot: status in data/autopilot_status.json, log in {log_path}. Stop: Ctrl+C or create data/STOP")
+    Autopilot(cfg, niche, s).run()
+
+
+@app.command("autopilot-status")
+def autopilot_status() -> None:
+    """What each autopilot worker is doing, plus queue and AI batch counts."""
+    import json
+
+    cfg, conn = _open()
+    path = cfg.resolve(Path("data/autopilot_status.json"))
+    if path.exists():
+        st = json.loads(path.read_text(encoding="utf-8"))
+        typer.echo(f"started {st.get('started_at')}  updated {st.get('updated_at')}")
+        for name, w in st.get("workers", {}).items():
+            extra = {k: v for k, v in w.items() if k not in ("state", "updated_at")}
+            typer.echo(f"  {name:<11} {w.get('state', '?'):<8} {w.get('updated_at', '')}  {json.dumps(extra, default=str)[:300]}")
+    else:
+        typer.echo("autopilot has not run yet")
+    q = dict(conn.execute("SELECT status, COUNT(*) FROM search_job GROUP BY status").fetchall())
+    typer.echo(f"  searches: {q}")
+    waiting = [r[0] for r in conn.execute("SELECT batch_id FROM ai_batch WHERE status='exported'")
+               if not cfg.resolve(Path(f"data/ai/results/{r[0]}.result.json")).exists()]
+    typer.echo(f"  AI batches waiting for the agent: {len(waiting)} {waiting}")
+    typer.echo(f"  leads: {conn.execute('SELECT COUNT(*) FROM business').fetchone()[0]}")
+
+
+# -- New machine setup --------------------------------------------------------
+
+@app.command("seed-export")
+def seed_export() -> None:
+    """Write reference data (no leads) to seed/reference.json.gz for new machines; commit it to git."""
+    from leadforge.seed import export_seed
+
+    cfg, conn = _open()
+    path, counts = export_seed(conn, cfg.root)
+    typer.echo(f"{path} ({path.stat().st_size // 1024} KB): {counts}")
+
+
+@app.command()
+def bootstrap(niche: str = typer.Option("scrapyards"),
+              skip_geonames: bool = typer.Option(False, help="Skip the GeoNames download (about 14 MB)")) -> None:
+    """Set up a working database on a new machine: workbook if present, else the repo's seed + the Google Sheet."""
+    from leadforge.seed import SEED_PATH, import_seed
+
+    cfg = load_app_config()
+    db_path = cfg.resolve(cfg.paths.database)
+    conn = db.connect(db_path)
+    if not db.is_empty(conn) or conn.execute(
+            "SELECT name FROM sqlite_master WHERE name='business'").fetchone() and             conn.execute("SELECT COUNT(*) FROM business").fetchone()[0]:
+        db.upgrade(conn)
+        typer.echo(f"Database already set up ({db_path}); nothing to bootstrap. Run `leadforge sync`.")
+        return
+    db.init_schema(conn)
+    xlsx = cfg.resolve(cfg.workbook.legacy_xlsx)
+    if xlsx.exists():
+        typer.echo("Workbook found: importing it ...")
+        conn.close()
+        migrate(xlsx=None, force=True)
+        conn = db.connect(db_path)
+    else:
+        typer.echo(f"No workbook; loading reference data from {SEED_PATH} ...")
+        typer.echo(f"  {import_seed(conn, cfg.root)}")
+    if not skip_geonames:
+        geo_import(country=None, refresh=False)
+    keywords(niche)
+    from leadforge.sync.client import client_from_env
+    try:
+        client_from_env(cfg.root)
+    except RuntimeError as exc:
+        typer.echo(f"Sheet not configured yet ({exc}). Put SHEETS_WEBAPP_URL in .env, then run `leadforge sync`.")
+        return
+    typer.echo("Pulling leads from the Google Sheet ...")
+    sync(niche=niche, tab=None)
+    typer.echo("Bootstrap complete. Start the engine with `leadforge autopilot`.")
 
 
 if __name__ == "__main__":

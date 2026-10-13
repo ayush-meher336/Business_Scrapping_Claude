@@ -5,7 +5,7 @@ Python pipeline for discovering, enriching and organising business leads. Design
 
 **Status:** Phases 1-6 built (migration, geography/keywords, browser discovery + dedup, website enrichment, agent-run AI, Google Sheets sync). No third-party data APIs; no model API calls in the code.
 
-An AI agent operating this project should read [AGENT.md](AGENT.md) first.
+An AI agent operating this project should read [AGENTS.md](AGENTS.md) first.
 
 ## Setup on a new machine
 
@@ -86,7 +86,7 @@ is well-formed and its domain has mail servers (MX); there is no mailbox-level c
 
 ```bash
 leadforge ai-export --limit 200   # batches of 20 with labelled evidence + instructions -> data/ai/batches/
-#   the agent writes data/ai/results/<batch_id>.result.json (see AGENT.md)
+#   the agent writes data/ai/results/<batch_id>.result.json (see AGENTS.md)
 leadforge ai-import               # validated import; doubtful results go to human review
 leadforge ai-status
 ```
