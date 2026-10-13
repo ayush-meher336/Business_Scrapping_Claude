@@ -117,12 +117,15 @@ def leads_spec(niche: NicheConfig) -> TabSpec:
                 lead_id = None
         if lead_id is None:
             lead_id = conn.execute("SELECT COALESCE(MAX(lead_id), 0) + 1 FROM business").fetchone()[0]
-        fields = {"lead_key": new_key, "lead_id": lead_id, "company_name": name,
-                  "research_status": "synced" if key else "manual"}
+        fields = {"lead_key": new_key, "lead_id": lead_id, "company_name": name}
         for h, v in values.items():
             c = by_header.get(h)
             if c and c.field in db_fields and c.field not in fields and v != "":
                 fields[c.field] = to_db(c.field, v)
+        fields.setdefault("research_status", "synced" if key else "manual")   # keep the sheet's own status
+        if fields.get("zone_id") is not None and not conn.execute(
+                "SELECT 1 FROM zone WHERE zone_id=?", (fields["zone_id"],)).fetchone():
+            fields["zone_id"] = None                                          # zone not known on this machine yet
         conn.execute(f"INSERT INTO business({', '.join(fields)}) VALUES ({', '.join('?' * len(fields))})",
                      tuple(fields.values()))
         return new_key

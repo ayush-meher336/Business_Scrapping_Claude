@@ -119,6 +119,7 @@ sheet_columns:
   - {header: "Last Updated At", field: last_updated_at, owner: research}
   - {header: "Human Review Required", field: human_review_required, owner: computed}
   - {header: "Review Notes", field: review_notes, owner: sales}
+  - {header: "Zone ID", field: zone_id, owner: research}
   - {header: "Lead Key", field: lead_key, owner: computed}
 
 # Discovery relevance: a hit is kept when its Maps category, name or snippet matches an include
