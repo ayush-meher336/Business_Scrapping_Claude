@@ -638,6 +638,8 @@ def autopilot(
     log_path = cfg.resolve(Path("data/autopilot.log"))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(threadName)-10s %(levelname)s %(message)s",
                         handlers=[logging.FileHandler(log_path, encoding="utf-8"), logging.StreamHandler()])
+    for noisy in ("httpx", "httpcore", "seleniumbase", "urllib3", "trafilatura"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)      # keep long-run logs readable
     with_sync = not no_sync
     if with_sync:
         from leadforge.sync.client import client_from_env
