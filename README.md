@@ -19,7 +19,7 @@ git clone https://github.com/ayush-meher336/Business_Scrapping_Claude.git
 cd Business_Scrapping_Claude
 python -m venv .venv
 .venv\Scripts\python -m pip install -e ".[dev]"     # macOS/Linux: .venv/bin/python ...
-.venv\Scriptsctivate                              # macOS/Linux: source .venv/bin/activate
+.venv\Scripts\activate                              # macOS/Linux: source .venv/bin/activate
 copy .env.example .env                               # then set SHEETS_WEBAPP_URL=<your web app /exec URL>
 leadforge bootstrap                                  # reference data from seed/, GeoNames, leads from the sheet
 leadforge autopilot                                  # runs until stopped (Ctrl+C or create data/STOP)
