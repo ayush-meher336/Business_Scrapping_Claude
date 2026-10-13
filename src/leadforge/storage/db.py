@@ -45,9 +45,9 @@ def upgrade(conn: sqlite3.Connection) -> list[int]:
 
 
 def is_empty(conn: sqlite3.Connection) -> bool:
-    row = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='legacy_row'"
-    ).fetchone()
-    if row is None:
-        return True
-    return conn.execute("SELECT COUNT(*) FROM legacy_row").fetchone()[0] == 0
+    """True when neither a workbook import nor a seed has loaded reference data yet."""
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    for t in ("legacy_row", "country"):
+        if t in tables and conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]:
+            return False
+    return True
